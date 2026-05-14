@@ -1,0 +1,25 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: graph-kb
+
+build:
+  artifacts:
+    - image: harbor.tuxgrid.com/platform/graph-kb
+      docker:
+        dockerfile: Dockerfile
+  tagPolicy:
+    gitCommit: {}
+
+manifests:
+  rawYaml:
+    - k8s/namespace.yaml
+    - k8s/sealedsecret.yaml
+    - k8s/pvc.yaml
+    - k8s/deployment.yaml
+    - k8s/service.yaml
+    - k8s/httproute.yaml
+
+deploy:
+  kubectl:
+    defaultNamespace: graph-kb

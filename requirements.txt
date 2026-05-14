@@ -1,0 +1,8 @@
+lightrag-hku
+mcp[cli]
+anthropic
+watchdog
+sentence-transformers
+pypdf
+python-hcl2
+httpx

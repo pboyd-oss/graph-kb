@@ -1,0 +1,16 @@
+services:
+  graph-kb:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - kb-data:/app/kb
+      - ./documents:/app/documents
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      BACKSTAGE_URL: ${BACKSTAGE_URL:-}
+      BACKSTAGE_TOKEN: ${BACKSTAGE_TOKEN:-}
+    restart: unless-stopped
+
+volumes:
+  kb-data:

@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graph-kb
+  namespace: graph-kb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: graph-kb
+  template:
+    metadata:
+      labels:
+        app: graph-kb
+    spec:
+      containers:
+        - name: graph-kb
+          image: harbor.tuxgrid.com/platform/graph-kb
+          ports:
+            - containerPort: 8000
+              name: mcp-sse
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: graph-kb-secrets
+                  key: anthropic-api-key
+            - name: BACKSTAGE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: graph-kb-secrets
+                  key: backstage-url
+            - name: BACKSTAGE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: graph-kb-secrets
+                  key: backstage-token
+          volumeMounts:
+            - name: kb-data
+              mountPath: /app/kb
+            - name: documents
+              mountPath: /app/documents
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+          readinessProbe:
+            httpGet:
+              path: /sse
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+      volumes:
+        - name: kb-data
+          persistentVolumeClaim:
+            claimName: graph-kb-data
+        - name: documents
+          persistentVolumeClaim:
+            claimName: graph-kb-documents
