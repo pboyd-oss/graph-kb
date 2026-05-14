@@ -6,8 +6,12 @@ metadata:
 build:
   artifacts:
     - image: harbor.tuxgrid.com/platform/graph-kb
-      docker:
+      kaniko:
         dockerfile: Dockerfile
+  cluster:
+    namespace: jenkins
+    dockerConfig:
+      secretName: gitea-docker-cfg
   tagPolicy:
     gitCommit: {}
 
