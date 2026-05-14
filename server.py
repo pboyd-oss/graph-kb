@@ -6,18 +6,36 @@ Supports: .txt, .md, .pdf (documents) + .py, .groovy, Jenkinsfile, .js, .ts, .go
 Backstage catalog ingestable via ingest_backstage tool.
 """
 import asyncio
+import hmac
 import os
 import threading
 from pathlib import Path
 
 import anthropic
+import uvicorn
 from lightrag import LightRAG, QueryParam
 from lightrag.utils import EmbeddingFunc
 from mcp.server.fastmcp import FastMCP
 from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import PlainTextResponse
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
+
+_KB_TOKEN = os.getenv("GRAPH_KB_TOKEN", "")
+
+
+class _BearerAuth(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if not _KB_TOKEN:
+            return await call_next(request)
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return PlainTextResponse("Unauthorized", status_code=401)
+        if not hmac.compare_digest(auth.removeprefix("Bearer "), _KB_TOKEN):
+            return PlainTextResponse("Unauthorized", status_code=401)
+        return await call_next(request)
 
 from analyzer import (
     CODE_EXTENSIONS, SPECIAL_FILENAMES,
@@ -336,7 +354,6 @@ async def analyze_terraform_repos(directories: list[str] | None = None) -> str:
 
 @mcp.tool()
 async def ingest_backstage(
-    base_url: str | None = None,
     token: str | None = None,
     kinds: list[str] | None = None,
 ) -> str:
@@ -346,14 +363,13 @@ async def ingest_backstage(
     Pulls all catalog entities and their relationships (dependsOn, providesApis,
     consumesApis, ownedBy, partOf) plus a cross-entity system map.
 
-    base_url: Backstage URL (e.g. https://backstage.company.com).
-              Falls back to BACKSTAGE_URL env var.
+    The Backstage URL is read from the BACKSTAGE_URL environment variable only.
     token:    Bearer token. Falls back to BACKSTAGE_TOKEN env var.
               Omit if your Backstage allows unauthenticated reads.
     kinds:    Entity kinds to fetch. Defaults to Component, API, Resource,
               System, Group, Domain.
     """
-    url = (base_url or os.getenv("BACKSTAGE_URL", "")).rstrip("/")
+    url = os.getenv("BACKSTAGE_URL", "").rstrip("/")
     tok = token or os.getenv("BACKSTAGE_TOKEN") or None
 
     if not url:
@@ -411,7 +427,9 @@ if __name__ == "__main__":
     observer.start()
     print("Graph KB started — watching /app/documents", flush=True)
     try:
-        mcp.run(transport="sse", host="0.0.0.0", port=8000)
+        app = mcp.sse_app()
+        app.add_middleware(_BearerAuth)
+        uvicorn.run(app, host="0.0.0.0", port=8000)
     finally:
         observer.stop()
         observer.join()

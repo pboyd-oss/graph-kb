@@ -23,6 +23,8 @@ manifests:
     - k8s/deployment.yaml
     - k8s/service.yaml
     - k8s/httproute.yaml
+    - k8s/networkpolicy.yaml
+    - k8s/resourcequota.yaml
 
 deploy:
   kubectl:

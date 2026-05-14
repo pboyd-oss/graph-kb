@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: graph-kb
+  namespace: graph-kb
+spec:
+  podSelector:
+    matchLabels:
+      app: graph-kb
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: gateway
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: platform-agent
+      ports:
+        - port: 8000
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - ports:
+        - port: 443

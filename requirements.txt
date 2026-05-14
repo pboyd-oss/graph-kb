@@ -6,3 +6,5 @@ sentence-transformers
 pypdf
 python-hcl2
 httpx
+uvicorn[standard]
+starlette

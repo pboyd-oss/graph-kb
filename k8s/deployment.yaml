@@ -13,6 +13,12 @@ spec:
       labels:
         app: graph-kb
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: graph-kb
           image: harbor.tuxgrid.com/platform/graph-kb
@@ -35,11 +41,20 @@ spec:
                 secretKeyRef:
                   name: graph-kb-secrets
                   key: backstage-token
+            - name: GRAPH_KB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: graph-kb-secrets
+                  key: graph-kb-token
+            - name: SENTENCE_TRANSFORMERS_HOME
+              value: /tmp/models
           volumeMounts:
             - name: kb-data
               mountPath: /app/kb
             - name: documents
               mountPath: /app/documents
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 500m
@@ -54,6 +69,11 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
       volumes:
         - name: kb-data
           persistentVolumeClaim:
@@ -61,3 +81,5 @@ spec:
         - name: documents
           persistentVolumeClaim:
             claimName: graph-kb-documents
+        - name: tmp
+          emptyDir: {}

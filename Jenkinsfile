@@ -4,8 +4,21 @@ pipeline {
     agent {
         kubernetes {
             cloud env.TUXGRID_BUILD_CLOUD
-            inheritFrom 'skaffold'
+            inheritFrom 'platform-builder'
         }
+    }
+
+    environment {
+        IMAGE = 'harbor.tuxgrid.com/platform/graph-kb'
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+
+    triggers {
+        pollSCM('H/5 * * * *')
     }
 
     stages {
@@ -15,15 +28,36 @@ pipeline {
 
         stage('Build') {
             steps {
-                script { buildApp() }
+                script { platformBuild() }
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                script { platformArchive() }
+            }
+        }
+
+        stage('Sign') {
+            steps {
+                script { platformSign() }
+            }
+        }
+
+        stage('Provenance') {
+            steps {
+                script { platformBuildProvenance() }
             }
         }
 
         stage('Deploy') {
             when { branch 'main' }
             steps {
-                container('skaffold') {
-                    sh 'skaffold deploy --build-artifacts=artifacts.json --namespace=graph-kb'
+                container('deploy-sec-base') {
+                    sh '''
+                        skaffold render --build-artifacts=artifacts.json --output=rendered.yaml
+                        skaffold apply rendered.yaml
+                    '''
                 }
             }
         }
