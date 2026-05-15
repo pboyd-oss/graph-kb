@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM harbor.tuxgrid.com/docker.io/python:3.12-slim
 WORKDIR /app
 
 # CPU-only torch first — avoids pulling the 5GB CUDA build
