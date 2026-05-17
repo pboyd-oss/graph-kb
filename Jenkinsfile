@@ -55,6 +55,15 @@ pipeline {
             steps {
                 container('deploy-sec-base') {
                     sh '''
+                        export KUBECONFIG="${WORKSPACE}/.kubeconfig"
+                        kubectl config set-cluster in-cluster \
+                            --server=https://kubernetes.default.svc \
+                            --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+                            --embed-certs=true
+                        kubectl config set-credentials sa \
+                            --token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+                        kubectl config set-context in-cluster --cluster=in-cluster --user=sa
+                        kubectl config use-context in-cluster
                         skaffold render --build-artifacts=artifacts.json --output=rendered.yaml
                         skaffold apply rendered.yaml
                     '''
