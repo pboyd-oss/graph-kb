@@ -8,18 +8,13 @@ Usage:
     python3 run_ingest.py [--server http://graph-kb.graph-kb.svc.cluster.local:8000]
 """
 import asyncio
-import hmac
-import json
 import os
-import sys
 import argparse
-from pathlib import Path
 
 import httpx
 
 SERVER = os.getenv("KB_URL", "http://graph-kb.graph-kb.svc.cluster.local:8000")
 TOKEN = os.getenv("GRAPH_KB_TOKEN", "")
-DOCS_DIR = Path("/app/documents")
 
 
 def _headers():
@@ -68,20 +63,28 @@ async def _open_session(client: httpx.AsyncClient) -> tuple[str, asyncio.Task]:
     return session_id, task
 
 
+async def _list_documents(client: httpx.AsyncClient) -> tuple[list[str], list[str]]:
+    resp = await client.get(
+        f"{SERVER}/documents",
+        headers={**({"Authorization": f"Bearer {TOKEN}"} if TOKEN else {})},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return data["directories"], data["files"]
+
+
 async def main(server: str):
     global SERVER
     SERVER = server.rstrip("/")
 
-    items = sorted(
-        p for p in DOCS_DIR.iterdir()
-        if p.name != "lost+found"
-    )
-    if not items:
+    async with httpx.AsyncClient() as client:
+        print("Fetching document list from server...", flush=True)
+        dirs, files = await _list_documents(client)
+
+    if not dirs and not files:
         print("No items in /app/documents — nothing to ingest.", flush=True)
         return
-
-    dirs = [p for p in items if p.is_dir()]
-    files = [p for p in items if p.is_file()]
 
     print(f"Found {len(dirs)} directories and {len(files)} loose files to ingest.", flush=True)
 
@@ -109,14 +112,14 @@ async def main(server: str):
 
         # Ingest directories
         for d in dirs:
-            print(f"\n[DIR] analyze_codebase('{d.name}')", flush=True)
-            result = await _call_tool(client, session_id, "analyze_codebase", {"directory": d.name})
+            print(f"\n[DIR] analyze_codebase('{d}')", flush=True)
+            result = await _call_tool(client, session_id, "analyze_codebase", {"directory": d})
             print(f"  → {result[:200]}", flush=True)
 
         # Ingest loose files
         for f in files:
-            print(f"\n[FILE] ingest_file('{f.name}')", flush=True)
-            result = await _call_tool(client, session_id, "ingest_file", {"filename": f.name})
+            print(f"\n[FILE] ingest_file('{f}')", flush=True)
+            result = await _call_tool(client, session_id, "ingest_file", {"filename": f})
             print(f"  → {result[:200]}", flush=True)
 
         sse_task.cancel()

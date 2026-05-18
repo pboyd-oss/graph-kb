@@ -9,13 +9,6 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
-      affinity:
-        podAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  app: graph-kb
-              topologyKey: kubernetes.io/hostname
       imagePullSecrets:
         - name: harbor-docker-pull
       securityContext:
@@ -39,10 +32,10 @@ spec:
           resources:
             requests:
               cpu: 50m
-              memory: 128Mi
+              memory: 64Mi
             limits:
               cpu: 500m
-              memory: 512Mi
+              memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -51,13 +44,6 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-            - name: documents
-              mountPath: /app/documents
-              readOnly: true
       volumes:
         - name: tmp
           emptyDir: {}
-        - name: documents
-          persistentVolumeClaim:
-            claimName: graph-kb-documents
-            readOnly: true

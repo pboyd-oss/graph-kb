@@ -15,7 +15,9 @@ import anthropic
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-from starlette.responses import PlainTextResponse
+from starlette.applications import Starlette
+from starlette.responses import JSONResponse, PlainTextResponse
+from starlette.routing import Mount, Route
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -453,6 +455,22 @@ async def list_documents() -> list[str]:
     return entries
 
 
+async def _documents_endpoint(request):
+    """List documents directory contents — used by the ingest job to avoid mounting the PVC."""
+    result = {"directories": [], "files": []}
+    try:
+        for p in sorted(DOCS_DIR.iterdir()):
+            if p.name == "lost+found":
+                continue
+            if p.is_dir():
+                result["directories"].append(p.name)
+            else:
+                result["files"].append(p.name)
+    except FileNotFoundError:
+        pass
+    return JSONResponse(result)
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -461,7 +479,11 @@ if __name__ == "__main__":
     observer.start()
     print("Graph KB started — watching /app/documents", flush=True)
     try:
-        app = _BearerAuth(mcp.sse_app())
+        _starlette = Starlette(routes=[
+            Route("/documents", _documents_endpoint),
+            Mount("/", app=mcp.sse_app()),
+        ])
+        app = _BearerAuth(_starlette)
         uvicorn.run(app, host="0.0.0.0", port=8000)
     finally:
         observer.stop()
