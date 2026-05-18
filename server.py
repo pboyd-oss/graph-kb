@@ -13,11 +13,8 @@ from pathlib import Path
 
 import anthropic
 import uvicorn
-from lightrag import LightRAG, QueryParam
-from lightrag.utils import EmbeddingFunc
 from mcp.server.fastmcp import FastMCP
-from pypdf import PdfReader
-from sentence_transformers import SentenceTransformer
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import PlainTextResponse
 from watchdog.events import FileSystemEventHandler
@@ -52,24 +49,22 @@ ALL_SUPPORTED = DOC_EXTENSIONS | set(CODE_EXTENSIONS)
 
 # ── Embeddings (local sentence-transformers, no extra API key) ───────────────
 
-_embed_model: "SentenceTransformer | None" = None
+_embed_model = None
 _embed_model_lock = threading.Lock()
 
 
-def _get_embed_model() -> "SentenceTransformer":
+def _get_embed_model():
     global _embed_model
     if _embed_model is None:
         with _embed_model_lock:
             if _embed_model is None:
+                from sentence_transformers import SentenceTransformer
                 _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
     return _embed_model
 
 
 async def _embed(texts: list[str]):
     return _get_embed_model().encode(texts, normalize_embeddings=True)
-
-
-embedding_func = EmbeddingFunc(embedding_dim=384, max_token_size=8192, func=_embed)
 
 
 # ── LLM (Claude via Anthropic SDK) ──────────────────────────────────────────
@@ -92,15 +87,18 @@ async def _llm(prompt, system_prompt=None, history_messages=None, **kwargs) -> s
 
 # ── LightRAG ─────────────────────────────────────────────────────────────────
 
-_rag: "LightRAG | None" = None
+_rag = None
 _rag_lock = threading.Lock()
 
 
-def _get_rag() -> LightRAG:
+def _get_rag():
     global _rag
     if _rag is None:
         with _rag_lock:
             if _rag is None:
+                from lightrag import LightRAG
+                from lightrag.utils import EmbeddingFunc
+                embedding_func = EmbeddingFunc(embedding_dim=384, max_token_size=8192, func=_embed)
                 _rag = LightRAG(working_dir=KB_DIR, llm_model_func=_llm, embedding_func=embedding_func)
     return _rag
 
@@ -125,6 +123,7 @@ async def _await(coro):
 
 def _read_doc(path: Path) -> str:
     if path.suffix == ".pdf":
+        from pypdf import PdfReader
         return "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages)
     return path.read_text(encoding="utf-8", errors="ignore")
 
@@ -296,7 +295,10 @@ def _fmt_system_map(entities: list[dict]) -> str:
 
 # ── MCP server ────────────────────────────────────────────────────────────────
 
-mcp = FastMCP("graph-kb")
+mcp = FastMCP(
+    "graph-kb",
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+)
 
 
 @mcp.tool()
@@ -424,6 +426,7 @@ async def query(question: str, mode: str = "hybrid") -> str:
     Query the knowledge graph.
     mode: hybrid (default) | local (precise entity lookup) | global (big-picture) | naive (simple vector search)
     """
+    from lightrag import QueryParam
     return await _await(_get_rag().aquery(question, param=QueryParam(mode=mode)))
 
 
