@@ -49,6 +49,25 @@ kubectl set image deployment/graph-kb \
 kubectl rollout status deployment/graph-kb -n graph-kb
 ```
 
+## Ingesting Documents
+
+Drop repos/files into the `graph-kb-documents` PVC, then run the ingest Job:
+
+```bash
+# Run ingestion (calls the server's MCP tools over SSE)
+kubectl delete job graph-kb-ingest -n graph-kb --ignore-not-found
+kubectl create -f k8s/ingest-job.yaml
+
+# Watch progress
+kubectl logs -n graph-kb job/graph-kb-ingest -f
+```
+
+The Job is a thin client — it connects to the running graph-kb server via SSE and calls
+`analyze_codebase` / `ingest_file` for each item in `/app/documents`. No PVC conflict with
+the server since only one LightRAG instance writes to `/app/kb`.
+
+To re-ingest after adding new repos, just delete and recreate the Job.
+
 ## Architecture
 
 - **`server.py`**: FastMCP SSE server on `:8000`. The `SentenceTransformer` model and `LightRAG` are lazy-initialized on first tool call, so the server binds the port immediately at startup. All LightRAG operations run in a dedicated asyncio event loop on a separate thread (`rag-loop`) to keep graph operations single-threaded.

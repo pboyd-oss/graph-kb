@@ -28,7 +28,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 ENV HTTPS_PROXY=
 ENV HTTP_PROXY=
 
-COPY server.py analyzer.py ./
+COPY server.py analyzer.py run_ingest.py ./
 RUN mkdir -p /app/kb /app/documents
 
 # Pre-download the sentence-transformers model so startup needs no network access

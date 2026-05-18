@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: graph-kb-ingest
+  namespace: graph-kb
+spec:
+  ttlSecondsAfterFinished: 86400
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: OnFailure
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: graph-kb
+              topologyKey: kubernetes.io/hostname
+      imagePullSecrets:
+        - name: harbor-docker-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ingest
+          image: harbor.tuxgrid.com/platform/graph-kb@sha256:5904ce65427fd45e8171c5eafc31ac0026d3fa783d447eddcd5e4d0867a7e4ef
+          command: ["python3", "/app/run_ingest.py"]
+          env:
+            - name: GRAPH_KB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: graph-kb-secrets
+                  key: graph-kb-token
+            - name: KB_URL
+              value: "http://graph-kb.graph-kb.svc.cluster.local:8000"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: documents
+              mountPath: /app/documents
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: documents
+          persistentVolumeClaim:
+            claimName: graph-kb-documents
+            readOnly: true

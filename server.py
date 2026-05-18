@@ -15,7 +15,6 @@ import anthropic
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import PlainTextResponse
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
@@ -23,16 +22,25 @@ from watchdog.observers import Observer
 _KB_TOKEN = os.getenv("GRAPH_KB_TOKEN", "")
 
 
-class _BearerAuth(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        if not _KB_TOKEN:
-            return await call_next(request)
-        auth = request.headers.get("Authorization", "")
-        if not auth.startswith("Bearer "):
-            return PlainTextResponse("Unauthorized", status_code=401)
-        if not hmac.compare_digest(auth.removeprefix("Bearer "), _KB_TOKEN):
-            return PlainTextResponse("Unauthorized", status_code=401)
-        return await call_next(request)
+class _BearerAuth:
+    """Pure ASGI bearer-token middleware — safe for SSE/streaming responses."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket") or not _KB_TOKEN:
+            await self.app(scope, receive, send)
+            return
+        headers = dict(scope.get("headers", []))
+        auth = headers.get(b"authorization", b"").decode()
+        if not auth.startswith("Bearer ") or not hmac.compare_digest(
+            auth.removeprefix("Bearer "), _KB_TOKEN
+        ):
+            response = PlainTextResponse("Unauthorized", status_code=401)
+            await response(scope, receive, send)
+            return
+        await self.app(scope, receive, send)
 
 from analyzer import (
     CODE_EXTENSIONS, SPECIAL_FILENAMES,
@@ -453,8 +461,7 @@ if __name__ == "__main__":
     observer.start()
     print("Graph KB started — watching /app/documents", flush=True)
     try:
-        app = mcp.sse_app()
-        app.add_middleware(_BearerAuth)
+        app = _BearerAuth(mcp.sse_app())
         uvicorn.run(app, host="0.0.0.0", port=8000)
     finally:
         observer.stop()
