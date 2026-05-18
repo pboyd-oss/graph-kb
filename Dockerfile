@@ -1,4 +1,5 @@
-FROM harbor.tuxgrid.com/docker.io/python:3.12-slim
+ARG BASE_IMAGE=python:3.12-slim
+FROM ${BASE_IMAGE}
 WORKDIR /app
 
 ARG PLATFORM_CA_B64
@@ -29,5 +30,9 @@ ENV HTTP_PROXY=
 
 COPY server.py analyzer.py ./
 RUN mkdir -p /app/kb /app/documents
+
+# Pre-download the sentence-transformers model so startup needs no network access
+ENV SENTENCE_TRANSFORMERS_HOME=/app/models
+RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
 CMD ["python", "server.py"]

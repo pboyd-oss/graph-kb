@@ -52,11 +52,21 @@ ALL_SUPPORTED = DOC_EXTENSIONS | set(CODE_EXTENSIONS)
 
 # ── Embeddings (local sentence-transformers, no extra API key) ───────────────
 
-_embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+_embed_model: "SentenceTransformer | None" = None
+_embed_model_lock = threading.Lock()
+
+
+def _get_embed_model() -> "SentenceTransformer":
+    global _embed_model
+    if _embed_model is None:
+        with _embed_model_lock:
+            if _embed_model is None:
+                _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _embed_model
 
 
 async def _embed(texts: list[str]):
-    return _embed_model.encode(texts, normalize_embeddings=True)
+    return _get_embed_model().encode(texts, normalize_embeddings=True)
 
 
 embedding_func = EmbeddingFunc(embedding_dim=384, max_token_size=8192, func=_embed)
@@ -82,7 +92,18 @@ async def _llm(prompt, system_prompt=None, history_messages=None, **kwargs) -> s
 
 # ── LightRAG ─────────────────────────────────────────────────────────────────
 
-rag = LightRAG(working_dir=KB_DIR, llm_model_func=_llm, embedding_func=embedding_func)
+_rag: "LightRAG | None" = None
+_rag_lock = threading.Lock()
+
+
+def _get_rag() -> LightRAG:
+    global _rag
+    if _rag is None:
+        with _rag_lock:
+            if _rag is None:
+                _rag = LightRAG(working_dir=KB_DIR, llm_model_func=_llm, embedding_func=embedding_func)
+    return _rag
+
 
 # Dedicated event loop for LightRAG — all rag.a* calls go here, keeping the
 # graph operations single-threaded and avoiding asyncio lock cross-loop issues.
@@ -122,7 +143,7 @@ def _read_file(path: Path) -> str:
 # ── Watchdog ─────────────────────────────────────────────────────────────────
 
 def _ingest_text(text: str, label: str = ""):
-    future = _submit(rag.ainsert(text))
+    future = _submit(_get_rag().ainsert(text))
     future.add_done_callback(
         lambda f: print(
             f"[OK] {label}" if not f.exception() else f"[ERR] {label}: {f.exception()}",
@@ -281,7 +302,7 @@ mcp = FastMCP("graph-kb")
 @mcp.tool()
 async def ingest(text: str, label: str = "document") -> str:
     """Add raw text to the knowledge graph."""
-    await _await(rag.ainsert(text))
+    await _await(_get_rag().ainsert(text))
     return f"Ingested '{label}'."
 
 
@@ -293,7 +314,7 @@ async def ingest_file(filename: str) -> str:
         return f"File not found: {filename}"
     if p.suffix not in ALL_SUPPORTED and p.name not in SPECIAL_FILENAMES:
         return f"Unsupported type '{p.suffix}'. Supported: {', '.join(sorted(ALL_SUPPORTED))}"
-    await _await(rag.ainsert(_read_file(p)))
+    await _await(_get_rag().ainsert(_read_file(p)))
     return f"Ingested {filename}."
 
 
@@ -312,7 +333,7 @@ async def analyze_codebase(directory: str) -> str:
         return f"No supported code files found in '{directory}'."
 
     for file_path, analysis in results:
-        await _await(rag.ainsert(analysis))
+        await _await(_get_rag().ainsert(analysis))
 
     langs: dict[str, int] = {}
     for p, _ in results:
@@ -348,7 +369,7 @@ async def analyze_terraform_repos(directories: list[str] | None = None) -> str:
             return "No Terraform repos found in documents/. Drop your repo folders there first."
 
     graph = build_terraform_cross_repo_graph(dirs)
-    await _await(rag.ainsert(graph))
+    await _await(_get_rag().ainsert(graph))
     return f"Cross-repo graph built for {len(dirs)} repos: {', '.join(d.name for d in dirs)}"
 
 
@@ -386,9 +407,9 @@ async def ingest_backstage(
         return "No entities returned — check the URL and token."
 
     for entity in entities:
-        await _await(rag.ainsert(_fmt_entity(entity)))
+        await _await(_get_rag().ainsert(_fmt_entity(entity)))
 
-    await _await(rag.ainsert(_fmt_system_map(entities)))
+    await _await(_get_rag().ainsert(_fmt_system_map(entities)))
 
     counts: dict[str, int] = {}
     for e in entities:
@@ -403,7 +424,7 @@ async def query(question: str, mode: str = "hybrid") -> str:
     Query the knowledge graph.
     mode: hybrid (default) | local (precise entity lookup) | global (big-picture) | naive (simple vector search)
     """
-    return await _await(rag.aquery(question, param=QueryParam(mode=mode)))
+    return await _await(_get_rag().aquery(question, param=QueryParam(mode=mode)))
 
 
 @mcp.tool()
