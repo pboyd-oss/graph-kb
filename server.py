@@ -99,7 +99,9 @@ def _get_rag():
                 from lightrag import LightRAG
                 from lightrag.utils import EmbeddingFunc
                 embedding_func = EmbeddingFunc(embedding_dim=384, max_token_size=8192, func=_embed)
-                _rag = LightRAG(working_dir=KB_DIR, llm_model_func=_llm, embedding_func=embedding_func)
+                rag = LightRAG(working_dir=KB_DIR, llm_model_func=_llm, embedding_func=embedding_func)
+                asyncio.run_coroutine_threadsafe(rag.initialize_storages(), _rag_loop).result()
+                _rag = rag
     return _rag
 
 
