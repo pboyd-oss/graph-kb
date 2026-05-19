@@ -19,7 +19,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: ingest
-          image: harbor.tuxgrid.com/platform/graph-kb@sha256:5904ce65427fd45e8171c5eafc31ac0026d3fa783d447eddcd5e4d0867a7e4ef
+          image: harbor.tuxgrid.com/platform/graph-kb@sha256:ec46d72a5ffe61fe9fdfd820afb4d791fe536b718a35be37de46b6e732c77cd1
           command: ["python3", "/app/run_ingest.py"]
           env:
             - name: GRAPH_KB_TOKEN
