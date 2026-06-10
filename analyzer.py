@@ -30,6 +30,9 @@ SPECIAL_FILENAMES: dict[str, str] = {
     "Jenkinsfile": "groovy",
 }
 
+# Documentation files: ingested as raw prose (no code-structure analysis)
+DOC_EXTENSIONS = {".md", ".markdown", ".txt", ".rst", ".adoc"}
+
 SKIP_DIRS = {
     ".git", "node_modules", "__pycache__", ".venv", "venv",
     "dist", "build", ".next", ".mypy_cache", "target", "vendor",
@@ -42,9 +45,20 @@ def is_code_file(path: Path) -> bool:
     return path.suffix in CODE_EXTENSIONS or path.name in SPECIAL_FILENAMES
 
 
+def is_doc_file(path: Path) -> bool:
+    return path.suffix.lower() in DOC_EXTENSIONS
+
+
+def _format_doc(path: Path, source: str) -> str:
+    """Wrap a documentation file's raw text for ingestion (no code analysis)."""
+    return f"File: {path}\nType: documentation\n\n{source}"
+
+
 def _get_lang(path: Path) -> str:
     if path.name in SPECIAL_FILENAMES:
         return SPECIAL_FILENAMES[path.name]
+    if path.suffix.lower() in DOC_EXTENSIONS:
+        return "documentation"
     return CODE_EXTENSIONS.get(path.suffix, "unknown")
 
 
@@ -60,13 +74,15 @@ def analyze_file(path: Path, source: str) -> str:
 
 
 def analyze_directory(dir_path: Path) -> list[tuple[Path, str]]:
-    """Recursively find and analyze all code files; also returns a cross-file summary."""
+    """Recursively find and analyze all code and documentation files; also returns a cross-file summary."""
     results: list[tuple[Path, str]] = []
 
     for path in sorted(dir_path.rglob("*")):
         if not path.is_file():
             continue
-        if path.suffix not in CODE_EXTENSIONS and path.name not in SPECIAL_FILENAMES:
+        is_code = path.suffix in CODE_EXTENSIONS or path.name in SPECIAL_FILENAMES
+        is_doc = is_doc_file(path)
+        if not is_code and not is_doc:
             continue
         if any(part in SKIP_DIRS for part in path.parts):
             continue
@@ -74,7 +90,10 @@ def analyze_directory(dir_path: Path) -> list[tuple[Path, str]]:
             continue
         try:
             source = path.read_text(encoding="utf-8", errors="ignore")
-            results.append((path, analyze_file(path, source)))
+            if is_code:
+                results.append((path, analyze_file(path, source)))
+            else:
+                results.append((path, _format_doc(path, source)))
         except Exception as e:
             print(f"  Skipping {path}: {e}", flush=True)
 
