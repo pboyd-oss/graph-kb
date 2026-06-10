@@ -24,9 +24,6 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Clear proxy env so the runtime image doesn't use it
-ENV HTTPS_PROXY=
-ENV HTTP_PROXY=
 
 COPY server.py analyzer.py run_ingest.py ./
 RUN mkdir -p /app/kb /app/documents
@@ -34,5 +31,9 @@ RUN mkdir -p /app/kb /app/documents
 # Pre-download the sentence-transformers model so startup needs no network access
 ENV SENTENCE_TRANSFORMERS_HOME=/app/models
 RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+
+# Clear proxy env so the runtime image doesn't use it
+ENV HTTPS_PROXY=
+ENV HTTP_PROXY=
 
 CMD ["python", "server.py"]
