@@ -5,6 +5,21 @@ pipeline {
         kubernetes {
             cloud env.TUXGRID_BUILD_CLOUD
             inheritFrom 'platform-builder'
+            yaml '''
+spec:
+  containers:
+    - name: deploy-sec-base
+      image: harbor.tuxgrid.com/platform/deploy-sec-base:latest
+      command: ["cat"]
+      tty: true
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+'''
         }
     }
 
