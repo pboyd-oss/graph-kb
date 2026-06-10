@@ -69,7 +69,7 @@ def _get_embed_model():
         with _embed_model_lock:
             if _embed_model is None:
                 from sentence_transformers import SentenceTransformer
-                _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+                _embed_model = SentenceTransformer(os.environ.get("EMBED_MODEL_PATH", "all-MiniLM-L6-v2"))
     return _embed_model
 
 

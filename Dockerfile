@@ -28,9 +28,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY server.py analyzer.py run_ingest.py ./
 RUN mkdir -p /app/kb /app/documents
 
-# Pre-download the sentence-transformers model so startup needs no network access
+# Bake the embedding model into the image. HuggingFace is blocked by the build
+# egress allowlist (only pypi/pytorch/etc are reachable via the mitmproxy), so the
+# model is vendored into the repo and copied in instead of fetched at build time.
+COPY model/all-MiniLM-L6-v2 /app/models/all-MiniLM-L6-v2
+ENV EMBED_MODEL_PATH=/app/models/all-MiniLM-L6-v2
 ENV SENTENCE_TRANSFORMERS_HOME=/app/models
-RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+ENV HF_HUB_OFFLINE=1
+# Verify the vendored model loads fully offline (fails the build if a file is missing)
+RUN python3 -c "import os; from sentence_transformers import SentenceTransformer; SentenceTransformer(os.environ['EMBED_MODEL_PATH'])"
 
 # Clear proxy env so the runtime image doesn't use it
 ENV HTTPS_PROXY=
