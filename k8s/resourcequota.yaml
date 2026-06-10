@@ -5,7 +5,7 @@ metadata:
   namespace: graph-kb
 spec:
   hard:
-    requests.storage: "35Gi"
+    requests.storage: "15Gi"
     pods: "5"
     services: "5"
     secrets: "10"
