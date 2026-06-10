@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: graph-kb
-          image: harbor.tuxgrid.com/platform/graph-kb@sha256:5904ce65427fd45e8171c5eafc31ac0026d3fa783d447eddcd5e4d0867a7e4ef
+          image: harbor.tuxgrid.com/platform/graph-kb@sha256:ba9293f599a5cc60bccc19c303e5678bac4c0f0b92a057f1f5d40aa0d84e1387
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
