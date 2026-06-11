@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Purpose
+
+`graph-kb` is a LightRAG knowledge-graph MCP server that gives the `platform-agent` deep, citation-backed answers about the platform's own source code and documentation. It ingests repos and Markdown docs into a graph + vector index (LightRAG + `all-MiniLM-L6-v2` embeddings, Anthropic for entity extraction), and exposes query and ingest tools over a FastMCP SSE endpoint with bearer-token auth. Deployed in the `graph-kb` namespace with two PVCs: the LightRAG graph/index and a watched documents directory.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Local Build & Deploy
